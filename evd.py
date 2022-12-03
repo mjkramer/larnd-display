@@ -512,6 +512,9 @@ def select_file(input_filename, event_id, filepath):
         if len(input_filename) > 0 and input_filename[0] == "/":
             input_filename = input_filename[1:]
 
+        if input_filename.startswith(CORI_FOLDER):
+            input_filename = input_filename[len(CORI_FOLDER):]
+
         h5_file = Path(load_filepath) / input_filename
         datalog = h5py.File(h5_file, "r")
     except FileNotFoundError:

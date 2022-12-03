@@ -717,6 +717,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
         fluid=True,
         style={
             "padding": "1.5em",
+            "padding-top": "0",
             "background-image": "url('%s')" % app.get_asset_url("logo.png"),
             "background-size": "74px 54px",
             "background-position": "right 1em top 1em",
@@ -902,8 +903,14 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                     ),
                                     dbc.Col(
                                         [
-                                            html.P(children="Prev cool event"),
-                                            html.P(children="Next cool event")
+                                            html.P(
+                                                children=dbc.Button("Prev cool event", id="prev-cool",
+                                                                    outline=True, color="primary", size="sm")
+                                            ),
+                                            html.P(
+                                                children=dbc.Button("Next cool event", id="next-cool",
+                                                                    outline=True, color="primary", size="sm")
+                                            )
                                         ]
                                     )
                                 ]

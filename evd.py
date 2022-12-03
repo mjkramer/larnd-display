@@ -465,6 +465,48 @@ def update_event_id(modified_timestamp, event_id):
         raise PreventUpdate
 
 
+def is_cool_event(packets):
+    data_packets = packets[packets['packet_type'] == 0]
+    total_adc = sum(data_packets['dataword'])
+    return total_adc > 1000
+
+
+def find_cool_event(event_id, filename, event_dividers, direction):
+    if event_dividers is not None:
+        with h5py.File(filename, "r") as datalog:
+            packets = datalog["packets"]
+            start = event_id + direction
+            end = -1 if direction == -1 else len(event_dividers) - 1
+            for maybe_id in range(start, end, direction):
+                start_packet = event_dividers[maybe_id]
+                end_packet = event_dividers[maybe_id + 1]
+                if is_cool_event(packets[start_packet:end_packet]):
+                    return maybe_id
+    return no_update
+
+
+@app.callback(
+    Output("input-evid", "value"),
+    Input("prev-cool", "n_clicks"),
+    State("event-id", "data"),
+    State("filename", "data"),
+    State("event-dividers", "data")
+)
+def prev_cool_click(_n_clicks, event_id, filename, event_dividers):
+    return find_cool_event(event_id, filename, event_dividers, -1)
+
+
+@app.callback(
+    Output("input-evid", "value"),
+    Input("next-cool", "n_clicks"),
+    State("event-id", "data"),
+    State("filename", "data"),
+    State("event-dividers", "data")
+)
+def next_cool_click(_n_clicks, event_id, filename, event_dividers):
+    return find_cool_event(event_id, filename, event_dividers, 1)
+
+
 @app.callback(
     Output("geometry-detector", "value"),
     Input("geometry-state", "modified_timestamp"),

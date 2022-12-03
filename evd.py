@@ -872,28 +872,42 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                     "text-align": "center",
                                 },
                             ),
-                            html.P(
-                                children=[
-                                    "Plot true tracks ",
-                                    daq.BooleanSwitch(
-                                        id="plot-tracks",
-                                        on=False,
-                                        style={"display": "inline-block"},
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            html.P(
+                                                children=[
+                                                    "Plot true tracks ",
+                                                    daq.BooleanSwitch(
+                                                        id="plot-tracks",
+                                                        on=False,
+                                                        style={"display": "inline-block"},
+                                                    ),
+                                                ],
+                                                style={"margin": "0"},
+                                            ),
+                                            html.P(
+                                                children=[
+                                                    "Plot optical detectors ",
+                                                    daq.BooleanSwitch(
+                                                        id="plot-opids",
+                                                        on=False,
+                                                        style={"display": "inline-block"},
+                                                    ),
+                                                ],
+                                                style={"margin": "0"},
+                                            ),
+                                        ]
                                     ),
-                                ],
-                                style={"margin": "0"},
-                            ),
-                            html.P(
-                                children=[
-                                    "Plot optical detectors ",
-                                    daq.BooleanSwitch(
-                                        id="plot-opids",
-                                        on=False,
-                                        style={"display": "inline-block"},
-                                    ),
-                                ],
-                                style={"margin": "0"},
-                            ),
+                                    dbc.Col(
+                                        [
+                                            html.P(children="Prev cool event"),
+                                            html.P(children="Next cool event")
+                                        ]
+                                    )
+                                ]
+                            )
                         ],
                         width=4,
                     ),

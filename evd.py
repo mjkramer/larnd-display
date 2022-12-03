@@ -563,7 +563,7 @@ def select_file(input_filename, event_id, filepath):
             ic = np.append(ic, len(packets))
             il = np.append(il, len(datalog["light_trig"]))
         else:
-            trigger_packets = packets[trigger_mask]
+            trigger_packets = np.nonzero(trigger_mask)[0]
             ic = trigger_packets[:-1][np.diff(trigger_packets) != 1]
             ic = np.append(ic, [trigger_packets[-1], len(packets)])
             il = np.array([])

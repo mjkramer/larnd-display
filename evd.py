@@ -40,6 +40,7 @@ UPLOAD_FOLDER_ROOT = "cache"
 DOCKER_MOUNTED_FOLDER = "/mnt/data/"
 CORI_FOLDER = "https://portal.nersc.gov/project/dune/data/"
 EVENT_BUFFER = 2000  # maximum difference in timeticks between hit and trigger
+DEFAULT_COOLNESS_THRESHOLD = 5000 # minimum ADC sum for a "cool" event
 
 app = DashProxy(
     __name__,
@@ -465,13 +466,18 @@ def update_event_id(modified_timestamp, event_id):
         raise PreventUpdate
 
 
-def is_cool_event(packets):
+def is_cool_event(packets, threshold):
+    # HACK: threshold doesn't get initialized if it hasn't been changed by the user
+    # there must be a way to force the state to get initialized
+    if threshold is None:
+        threshold = DEFAULT_COOLNESS_THRESHOLD
     data_packets = packets[packets['packet_type'] == 0]
     total_adc = sum(data_packets['dataword'])
-    return total_adc > 1000
+    print(f"Treshold = {threshold}")
+    return total_adc > threshold
 
 
-def find_cool_event(event_id, filename, event_dividers, direction):
+def find_cool_event(event_id, filename, event_dividers, threshold, direction):
     if event_dividers is not None:
         with h5py.File(filename, "r") as datalog:
             packets = datalog["packets"]
@@ -480,7 +486,7 @@ def find_cool_event(event_id, filename, event_dividers, direction):
             for maybe_id in range(start, end, direction):
                 start_packet = event_dividers[maybe_id]
                 end_packet = event_dividers[maybe_id + 1]
-                if is_cool_event(packets[start_packet:end_packet]):
+                if is_cool_event(packets[start_packet:end_packet], threshold):
                     return maybe_id
     return no_update
 
@@ -490,10 +496,11 @@ def find_cool_event(event_id, filename, event_dividers, direction):
     Input("prev-cool", "n_clicks"),
     State("event-id", "data"),
     State("filename", "data"),
-    State("event-dividers", "data")
+    State("event-dividers", "data"),
+    State("coolness-threshold", "data")
 )
-def prev_cool_click(_n_clicks, event_id, filename, event_dividers):
-    return find_cool_event(event_id, filename, event_dividers, -1)
+def prev_cool_click(_n_clicks, event_id, filename, event_dividers, threshold):
+    return find_cool_event(event_id, filename, event_dividers, threshold, -1)
 
 
 @app.callback(
@@ -501,10 +508,19 @@ def prev_cool_click(_n_clicks, event_id, filename, event_dividers):
     Input("next-cool", "n_clicks"),
     State("event-id", "data"),
     State("filename", "data"),
-    State("event-dividers", "data")
+    State("event-dividers", "data"),
+    State("coolness-threshold", "data")
 )
-def next_cool_click(_n_clicks, event_id, filename, event_dividers):
-    return find_cool_event(event_id, filename, event_dividers, 1)
+def next_cool_click(_n_clicks, event_id, filename, event_dividers, threshold):
+    return find_cool_event(event_id, filename, event_dividers, threshold, 1)
+
+
+@app.callback(
+    Output("coolness-threshold", "data"),
+    Input("input-coolness-threshold", "value")
+)
+def update_coolness_threshold(threshold):
+    return threshold
 
 
 @app.callback(
@@ -772,6 +788,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
             dcc.Store(id="event-dividers", storage_type="session"),
             dcc.Store(id="light-dividers", storage_type="session"),
             dcc.Store(id="geometry-state", storage_type="session"),
+            dcc.Store(id="coolness-threshold", storage_type="session"),
             dcc.Store(id="plot-tracks-state", storage_type="session", data=False),
             dcc.Store(id="plot-opids-state", storage_type="session", data=False),
             html.Div(id="unique-url", style={"display": "none"}),
@@ -946,13 +963,25 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                     dbc.Col(
                                         [
                                             html.P(
-                                                children=dbc.Button("Prev cool event", id="prev-cool",
-                                                                    outline=True, color="primary", size="sm")
+                                                children=[html.Span(children="Cool event min ADC sum: "),
+                                                          dcc.Input(id="input-coolness-threshold",
+                                                                    type="number", value=DEFAULT_COOLNESS_THRESHOLD,
+                                                                    debounce=True,
+                                                                    style={"display": "inline-block",
+                                                                           "width": "7em"})]
                                             ),
                                             html.P(
-                                                children=dbc.Button("Next cool event", id="next-cool",
-                                                                    outline=True, color="primary", size="sm")
-                                            )
+                                                children=[
+                                                    dbc.Button("Prev cool event", id="prev-cool",
+                                                               outline=True, color="primary", size="sm",
+                                                               style={"display": "inline-block",
+                                                                      "margin-right": "1em"}),
+                                                    dbc.Button("Next cool event", id="next-cool",
+                                                               outline=True, color="primary", size="sm",
+                                                               style={"display": "inline-block",
+                                                                      "margin-right": "1em"}),
+                                                    ]
+                                            ),
                                         ]
                                     )
                                 ]

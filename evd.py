@@ -7,6 +7,7 @@ Web-based event display for ArgonCube detectors
 import shutil
 import atexit
 
+from functools import lru_cache
 from os.path import basename
 from pathlib import Path
 
@@ -128,8 +129,6 @@ def draw_event(
     ],
     [
         Input("event-id", "data"),
-        Input("event-dividers", "data"),
-        Input("light-dividers", "data"),
         Input("filename", "data"),
         Input("geometry-state", "data"),
         Input("plot-tracks-state", "data"),
@@ -141,8 +140,6 @@ def draw_event(
 )
 def update_output(
     event_id,
-    event_dividers,
-    light_dividers,
     filename,
     geometry,
     do_plot_tracks,
@@ -150,6 +147,8 @@ def update_output(
     figure,
 ):
     """Update 3D event display end event id"""
+
+    event_dividers,  light_dividers = get_event_dividers(filename)
     fig = go.Figure(figure)
 
     if event_dividers is None:
@@ -197,12 +196,12 @@ def reset_light(_):
     [
         State("event-display", "figure"),
         State("event-id", "data"),
-        State("light-dividers", "data"),
         State("filename", "data"),
     ],
 )
-def light_waveform(click_data, _, event_id, light_dividers, filename):
+def light_waveform(click_data, _, event_id, filename):
     """Plot the light waveform for the selected event on the clicked optical detector"""
+    _event_dividers, light_dividers = get_event_dividers(filename)
     if (
         click_data
         and "id" in click_data["points"][0]
@@ -279,13 +278,13 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
     ],
     [
         Input("event-id", "data"),
-        Input("event-dividers", "data"),
         Input("filename", "data"),
         Input("geometry-detector", "value"),
     ],
 )
-def adc_histogram(event_id, event_dividers, filename, geometry):
+def adc_histogram(event_id, filename, geometry):
     """Plot histogram of the adc counts for each drift volume"""
+    event_dividers, _light_dividers = get_event_dividers(filename)
     if event_dividers is not None and geometry is not None:
         start_packet = event_dividers[event_id]
         end_packet = event_dividers[event_id + 1]
@@ -407,15 +406,16 @@ def update_filename(modified_timestamp, filename):
 
 @app.callback(
     Output("total-events", "children"),
-    Input("event-dividers", "modified_timestamp"),
-    State("event-dividers", "data"),
+    Input("filename", "modified_timestamp"),
+    Input("filename", "data")
 )
-def update_total_events(modified_timestamp, event_dividers):
+def update_total_events(modified_timestamp, filename):
     """Update the total number of events text"""
+    event_dividers, _light_dividers = get_event_dividers(filename)
     if modified_timestamp is None:
         raise PreventUpdate
 
-    if not event_dividers:
+    if len(event_dividers) < 2:
         total_events = 0
     else:
         total_events = len(event_dividers) - 2
@@ -426,20 +426,23 @@ def update_total_events(modified_timestamp, event_dividers):
 @app.callback(
     [
         Input("input-evid", "value"),
-        Input("event-dividers", "data"),
     ],
     [
         Output("event-id", "data"),
         Output("input-evid", "value"),
     ],
+    [
+        State("filename", "data")
+    ]
 )
-def update_event_id_click(input_evid, event_dividers):
+def update_event_id_click(input_evid, filename):
     try:
         event_id = int(input_evid)
     except TypeError:
         return no_update, no_update
 
-    if event_dividers:
+    event_dividers, _light_dividers = get_event_dividers(filename)
+    if event_dividers is not None:
         if event_id >= len(event_dividers) - 1:
             event_id = len(event_dividers) - 2
 
@@ -477,7 +480,8 @@ def is_cool_event(packets, threshold):
     return total_adc > threshold
 
 
-def find_cool_event(event_id, filename, event_dividers, threshold, direction):
+def find_cool_event(event_id, filename, threshold, direction):
+    event_dividers, _light_dividers = get_event_dividers(filename)
     if event_dividers is not None:
         with h5py.File(filename, "r") as datalog:
             packets = datalog["packets"]
@@ -496,11 +500,10 @@ def find_cool_event(event_id, filename, event_dividers, threshold, direction):
     Input("prev-cool", "n_clicks"),
     State("event-id", "data"),
     State("filename", "data"),
-    State("event-dividers", "data"),
     State("coolness-threshold", "data")
 )
-def prev_cool_click(_n_clicks, event_id, filename, event_dividers, threshold):
-    return find_cool_event(event_id, filename, event_dividers, threshold, -1)
+def prev_cool_click(_n_clicks, event_id, filename, threshold):
+    return find_cool_event(event_id, filename, threshold, -1)
 
 
 @app.callback(
@@ -508,11 +511,10 @@ def prev_cool_click(_n_clicks, event_id, filename, event_dividers, threshold):
     Input("next-cool", "n_clicks"),
     State("event-id", "data"),
     State("filename", "data"),
-    State("event-dividers", "data"),
     State("coolness-threshold", "data")
 )
-def next_cool_click(_n_clicks, event_id, filename, event_dividers, threshold):
-    return find_cool_event(event_id, filename, event_dividers, threshold, 1)
+def next_cool_click(_n_clicks, event_id, filename, threshold):
+    return find_cool_event(event_id, filename, threshold, 1)
 
 
 @app.callback(
@@ -542,8 +544,6 @@ def update_geometry(modified_timestamp, detector_geometry):
 @app.callback(
     [
         Output("filename", "data"),
-        Output("event-dividers", "data"),
-        Output("light-dividers", "data"),
         Output("event-id", "data"),
         Output("alert-file-not-found", "is_open"),
         Output("alert-file-not-found", "children"),
@@ -579,8 +579,6 @@ def select_file(input_filename, event_id, filepath):
         print(h5_file, "not found")
         return (
             no_update,
-            no_update,
-            no_update,
             event_id,
             True,
             f"File {filepath_message}{input_filename} not found",
@@ -591,8 +589,6 @@ def select_file(input_filename, event_id, filepath):
         print(h5_file, "invalid file", err)
         return (
             no_update,
-            no_update,
-            no_update,
             event_id,
             True,
             f"File {filepath_message}{input_filename} is not a valid file",
@@ -601,55 +597,58 @@ def select_file(input_filename, event_id, filepath):
     try:
         packets = datalog["packets"]
     except KeyError:
-        return no_update, no_update, no_update, event_id, True, f"No packets dataset in {filepath_message}{input_filename}"
+        return no_update, event_id, True, f"No packets dataset in {filepath_message}{input_filename}"
 
-    trigger_mask = packets["packet_type"] == 7
-    if trigger_mask.any():
+    return str(h5_file), event_id, False, no_update
 
-        if "light_trig" in datalog.keys():
-            ts, il, ic = np.intersect1d(
-                datalog["light_trig"]["ts_sync"],
-                packets[trigger_mask]["timestamp"],
-                return_indices=True,
-            )
-            ic = np.indices(datalog["packets"].shape)[0][trigger_mask][ic]
-            i_sort = np.argsort(il)
-            il = il[i_sort]
-            ic = ic[i_sort]
-            ts = ts[i_sort]
 
-            merge_mask = np.diff(ts.astype(int)) > 200
-            il = il[np.r_[True, merge_mask]]
-            ic = ic[np.r_[True, merge_mask]]
-            ic = np.append(ic, len(packets))
-            il = np.append(il, len(datalog["light_trig"]))
-        else:
-            trigger_packets = np.nonzero(trigger_mask)[0]
-            ic = trigger_packets[:-1][np.diff(trigger_packets) != 1]
-            ic = np.append(ic, [trigger_packets[-1], len(packets)])
-            il = np.array([])
+@lru_cache(maxsize=64)
+def get_event_dividers(path: str):
+    with h5py.File(path) as datalog:
+        packets = datalog["packets"]
+        trigger_mask = packets["packet_type"] == 7
+        if trigger_mask.any():
+            if "light_trig" in datalog.keys():
+                ts, il, ic = np.intersect1d(
+                    datalog["light_trig"]["ts_sync"],
+                    packets[trigger_mask]["timestamp"],
+                    return_indices=True,
+                )
+                ic = np.indices(datalog["packets"].shape)[0][trigger_mask][ic]
+                i_sort = np.argsort(il)
+                il = il[i_sort]
+                ic = ic[i_sort]
+                ts = ts[i_sort]
 
-        return str(h5_file), ic, il, event_id, False, no_update
-    else:
-        return no_update, no_update, no_update, event_id, True, "No triggers found"
+                merge_mask = np.diff(ts.astype(int)) > 200
+                il = il[np.r_[True, merge_mask]]
+                ic = ic[np.r_[True, merge_mask]]
+                ic = np.append(ic, len(packets))
+                il = np.append(il, len(datalog["light_trig"]))
+            else:
+                trigger_packets = np.nonzero(trigger_mask)[0]
+                ic = trigger_packets[:-1][np.diff(trigger_packets) != 1]
+                ic = np.append(ic, [trigger_packets[-1], len(packets)])
+                il = np.array([])
+
+            return ic, il
+
 
 
 @app.callback(
     [
         Output("filename", "data"),
-        Output("event-dividers", "data"),
         Output("event-id", "data"),
         Output("server-filename", "value"),
     ],
     Input("select-file", "isCompleted"),
     [
         State("filename", "data"),
-        State("event-dividers", "data"),
         State("select-file", "fileNames"),
         State("select-file", "upload_id"),
     ],
 )
-def upload_file(is_completed, filename, event_dividers, filenames, upload_id):
+def upload_file(is_completed, filename, filenames, upload_id):
     """Upload HDF5 file to cache"""
     if not is_completed:
         return filename, event_dividers, 0
@@ -665,12 +664,12 @@ def upload_file(is_completed, filename, event_dividers, filenames, upload_id):
         packets = datalog["packets"]
 
         trigger_packets = np.argwhere(packets["packet_type"] == 7).T[0]
-        event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
-        event_dividers = np.append(event_dividers, [trigger_packets[-1], len(packets)])
+        # event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
+        # event_dividers = np.append(event_dividers, [trigger_packets[-1], len(packets)])
 
-        return str(h5_file), event_dividers, 0, ""
+        return str(h5_file), 0, ""
 
-    return filename, event_dividers, 0, ""
+    return filename, 0, ""
 
 
 @app.callback(
@@ -785,8 +784,6 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
             dcc.Location(id="url"),
             dcc.Store(id="filename", storage_type="session"),
             dcc.Store(id="event-id", storage_type="session"),
-            dcc.Store(id="event-dividers", storage_type="session"),
-            dcc.Store(id="light-dividers", storage_type="session"),
             dcc.Store(id="geometry-state", storage_type="session"),
             dcc.Store(id="coolness-threshold", storage_type="session"),
             dcc.Store(id="plot-tracks-state", storage_type="session", data=False),
@@ -840,7 +837,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                     "font-size": "small",
                                     "margin": "0 0 0.2em 0",
                                 },
-                                placeholder="enter file path here...",
+                                placeholder="enter file path (or whole URL)...",
                                 size=38,
                                 debounce=True,
                             ),

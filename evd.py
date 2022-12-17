@@ -476,7 +476,6 @@ def is_cool_event(packets, threshold):
         threshold = DEFAULT_COOLNESS_THRESHOLD
     data_packets = packets[packets['packet_type'] == 0]
     total_adc = sum(data_packets['dataword'])
-    print(f"Treshold = {threshold}")
     return total_adc > threshold
 
 

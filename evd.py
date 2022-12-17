@@ -598,7 +598,7 @@ def select_file(input_filename, event_id, filepath):
     except KeyError:
         return no_update, event_id, True, f"No packets dataset in {filepath_message}{input_filename}"
 
-    return str(h5_file), event_id, False, no_update
+    return str(h5_file), 0, False, no_update
 
 
 @lru_cache(maxsize=64)

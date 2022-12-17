@@ -914,7 +914,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 placeholder="0",
                                 debounce=True,
                                 style={
-                                    "width": "5em",
+                                    "width": "6em",
                                     "display": "inline-block",
                                     "margin-right": "0.5em",
                                     "margin-left": "0.5em",

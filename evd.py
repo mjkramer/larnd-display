@@ -41,7 +41,7 @@ UPLOAD_FOLDER_ROOT = "cache"
 DOCKER_MOUNTED_FOLDER = "/mnt/data/"
 CORI_FOLDER = "https://portal.nersc.gov/project/dune/data/"
 EVENT_BUFFER = 2000  # maximum difference in timeticks between hit and trigger
-DEFAULT_COOLNESS_THRESHOLD = 5000 # minimum ADC sum for a "cool" event
+DEFAULT_COOLNESS_THRESHOLD = 20000 # minimum ADC sum for a "cool" event
 
 app = DashProxy(
     __name__,

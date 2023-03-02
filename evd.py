@@ -515,6 +515,23 @@ def prev_cool_click(_n_clicks, event_id, filename, threshold):
 def next_cool_click(_n_clicks, event_id, filename, threshold):
     return find_cool_event(event_id, filename, threshold, 1)
 
+@app.callback(
+    Output("input-evid", "value"),
+    Input("prev-event", "n_clicks"),
+    State("event-id", "data"),
+    State("filename", "data")
+)
+def prev_event(_n_clicks, event_id, filename):
+    return find_cool_event(event_id, filename, 0, -1)
+
+@app.callback(
+    Output("input-evid", "value"),
+    Input("next-event", "n_clicks"),
+    State("event-id", "data"),
+    State("filename", "data")
+)
+def next_event(_n_clicks, event_id, filename):
+    return find_cool_event(event_id, filename, 0, 1)
 
 @app.callback(
     Output("coolness-threshold", "data"),
@@ -929,6 +946,13 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                     "text-align": "center",
                                 },
                             ),
+                            dbc.Button("Prev", id="prev-event",
+                                outline=True, color="primary", size="sm",
+                                style={"display": "inline-block",
+                                       "margin-right": "0.5em"}),
+                            dbc.Button("Next", id="next-event",
+                                outline=True, color="primary", size="sm",
+                                style={"display": "inline-block"}),
                             dbc.Row(
                                 [
                                     dbc.Col(

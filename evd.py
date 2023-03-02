@@ -817,7 +817,8 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 style={"margin": "0"},
                             ),
                             html.P(
-                                children=html.A(href=filepath, children=filepath)
+                                children=html.A(href=filepath, children=filepath,
+                                                target="_blank")
                                 if "https" in filepath
                                 else filepath,
                                 id="filepath",
